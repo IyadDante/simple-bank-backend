@@ -1,48 +1,43 @@
-using AuthService.Interfaces;
+using AuthService.Data;
 using AuthService.Models;
-using BankingApp.Shared.DTOs;
+using AuthService.Services;
+using BankingApp.Shared.DTOs.Auth;
+using Microsoft.AspNetCore.Identity;
 
 namespace AuthService.Services
 {
     public class AuthService : IAuthService
     {
-        private readonly List<User> _users = new(); // Simulating in-memory DB
+        private readonly ApplicationDbContext _context;
+        private readonly IPasswordHasher<User> _passwordHasher;
 
-        public async Task<UserDto?> RegisterAsync(string username, string email, string password)
+        public AuthService(ApplicationDbContext context, IPasswordHasher<User> passwordHasher)
         {
-            if (_users.Any(u => u.Email == email)) return null;
+            _context = context;
+            _passwordHasher = passwordHasher;
+        }
+
+        public async Task<string> RegisterAsync(RegisterUserDto registerUserDto)
+        {
+            var existingUser = _context.Users.FirstOrDefault(u => u.Email == registerUserDto.Email);
+            if (existingUser != null)
+            {
+                return "User already exists.";
+            }
 
             var user = new User
             {
-                Id = Guid.NewGuid(),
-                Username = username,
-                Email = email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
+                Email = registerUserDto.Email,
+                Username = registerUserDto.Username,
+                PasswordHash = ""
             };
 
-            _users.Add(user);
+            user.PasswordHash = _passwordHasher.HashPassword(user, registerUserDto.Password);
 
-            return await Task.FromResult(new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Role = user.Role
-            });
-        }
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
 
-        public async Task<UserDto?> LoginAsync(string email, string password)
-        {
-            var user = _users.FirstOrDefault(u => u.Email == email);
-            if (user == null || !BCrypt.Net.BCrypt.Verify(password, user.PasswordHash)) return null;
-
-            return await Task.FromResult(new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                Role = user.Role
-            });
+            return "User registered successfully.";
         }
     }
 }

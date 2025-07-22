@@ -5,6 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddScoped<IAuthService, AuthService.Services.AuthService>();
+builder.Services.AddScoped<IPasswordHasher<AuthService.Entities.User>, PasswordHasher<AuthService.Entities.User>>();
 
 
 var app = builder.Build();
