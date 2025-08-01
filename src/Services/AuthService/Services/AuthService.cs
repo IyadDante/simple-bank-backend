@@ -1,43 +1,54 @@
-using AuthService.Data;
-using AuthService.Models;
-using AuthService.Services;
-using BankingApp.Shared.DTOs.Auth;
+using AuthService.Entities;
+using BankingApp.Shared.DTOs;
 using Microsoft.AspNetCore.Identity;
 
 namespace AuthService.Services
 {
     public class AuthService : IAuthService
     {
-        private readonly ApplicationDbContext _context;
-        private readonly IPasswordHasher<User> _passwordHasher;
+        private static readonly List<User> _users = new();
 
-        public AuthService(ApplicationDbContext context, IPasswordHasher<User> passwordHasher)
+        private readonly IPasswordHasher<User> _passwordHasher;
+        private readonly JwtTokenGenerator _jwtTokenGenerator;
+
+        public AuthService(IPasswordHasher<User> passwordHasher, JwtTokenGenerator jwtTokenGenerator)
         {
-            _context = context;
             _passwordHasher = passwordHasher;
+            _jwtTokenGenerator = jwtTokenGenerator;
         }
 
-        public async Task<string> RegisterAsync(RegisterUserDto registerUserDto)
+        public async Task<string> RegisterAsync(RegisterUserDto dto)
         {
-            var existingUser = _context.Users.FirstOrDefault(u => u.Email == registerUserDto.Email);
+            var existingUser = _users.FirstOrDefault(u => u.Email == dto.Email);
             if (existingUser != null)
-            {
                 return "User already exists.";
-            }
 
             var user = new User
             {
-                Email = registerUserDto.Email,
-                Username = registerUserDto.Username,
-                PasswordHash = ""
+                FullName = dto.FullName,
+                Email = dto.Email,
+                Role = "User"
             };
 
-            user.PasswordHash = _passwordHasher.HashPassword(user, registerUserDto.Password);
+            user.PasswordHash = _passwordHasher.HashPassword(user, dto.Password);
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            _users.Add(user);
 
-            return "User registered successfully.";
+            return await Task.FromResult("User registered successfully.");
+        }
+
+        public async Task<string?> LoginAsync(LoginUserDto dto)
+        {
+            var user = _users.FirstOrDefault(u => u.Email == dto.Email);
+            if (user == null)
+                return null;
+
+            var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, dto.Password);
+            if (result == PasswordVerificationResult.Failed)
+                return null;
+
+            var token = _jwtTokenGenerator.GenerateToken(user);
+            return await Task.FromResult(token);
         }
     }
 }

@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Mvc;
-using AuthService.Interfaces;
+using AuthService.Services;
 using BankingApp.Shared.DTOs;
 
 namespace AuthService.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/auth")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
@@ -16,21 +16,28 @@ namespace AuthService.Controllers
         }
 
         [HttpPost("register")]
-        public async Task<ActionResult<UserDto>> Register(string username, string email, string password)
+        public async Task<IActionResult> Register([FromBody] RegisterUserDto dto)
         {
-            var result = await _authService.RegisterAsync(username, email, password);
-            if (result == null) return BadRequest("Email already in use.");
+            var result = await _authService.RegisterAsync(dto);
+            if (result == "User already exists.")
+            {
+                return Conflict(result); // HTTP 409
+            }
 
             return Ok(result);
         }
 
         [HttpPost("login")]
-        public async Task<ActionResult<UserDto>> Login(string email, string password)
+        public async Task<IActionResult> Login([FromBody] LoginUserDto dto)
         {
-            var result = await _authService.LoginAsync(email, password);
-            if (result == null) return Unauthorized("Invalid credentials.");
+            var token = await _authService.LoginAsync(dto);
+            if (token == null)
+            {
+                return Unauthorized("Invalid credentials.");
+            }
 
-            return Ok(result);
+            return Ok(new { token });
         }
+
     }
 }
